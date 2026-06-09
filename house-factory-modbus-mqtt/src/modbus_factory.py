@@ -1,12 +1,13 @@
 import time
 import math
 import json
+import os
 from datetime import datetime, timezone
 from threading import Thread
 
 import paho.mqtt.client as mqtt
 
-from pymodbus.server import StartTcpServer
+from pymodbus.server.sync import StartTcpServer
 from pymodbus.datastore import (
     ModbusSequentialDataBlock,
     ModbusSlaveContext,
@@ -26,9 +27,9 @@ context = ModbusServerContext(slaves=store, single=True)
 # -----------------------------
 # MQTT configuration
 # -----------------------------
-MQTT_HOST = "localhost"
-MQTT_PORT = 1883
-BASE_TOPIC = "uns/v1/house-factory/line-01"
+MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
+MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
+BASE_TOPIC = os.getenv("BASE_TOPIC", "uns/v1/house-factory/line-01")
 
 mqtt_client = mqtt.Client()
 mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
