@@ -2,15 +2,24 @@
 
 A small portfolio repository for Industrial IoT / OT connectivity experiments.
 
-This repository contains demo projects focused on industrial data acquisition, protocol conversion, MQTT publishing, UNS-style topic structures, and future integration with tools such as Ignition, OPC UA, databases, and dashboards.
+This repository contains demo projects focused on industrial data acquisition, protocol conversion, MQTT publishing, UNS-style topic structures, containerized workloads, and integration with tools such as Ignition, OPC UA, databases, and dashboards.
 
-The purpose is to build a practical, understandable IIoT learning environment using a Raspberry Pi / Linux machine and open-source tools.
+The purpose is to build a practical, understandable IIoT learning environment using Raspberry Pi / Linux, Docker, Python, MQTT, Modbus TCP, and open-source tools.
 
 ## Current project
 
 ### House Factory Modbus MQTT Demo
 
-A simple factory-line simulator that exposes process values over **Modbus TCP** and publishes the same values to an **MQTT broker** using a UNS-style topic structure.
+A small factory-line simulator that exposes process values over **Modbus TCP** and publishes the same values to an **MQTT broker** using a UNS-style topic structure.
+
+The project also includes:
+
+* Docker Compose deployment
+* Mosquitto MQTT broker configuration
+* MQTT Explorer verification
+* Ignition tag export
+* Ignition Perspective project resources
+* basic SCADA / IIoT dashboard concept
 
 Project folder:
 
@@ -18,31 +27,29 @@ Project folder:
 house-factory-modbus-mqtt/
 ```
 
-Data flow:
+## Data flow
 
 ```text
-Python simulator
-      |
-      | Modbus TCP
-      v
-Modbus clients / SCADA / Ignition
-      |
-      | MQTT
-      v
-Mosquitto broker / UNS-style namespace
+Python factory simulator
+        |
+        | Modbus TCP
+        v
+Ignition OPC tags
+        |
+        v
+Perspective dashboard
 ```
 
-The simulator publishes example process values such as:
-
-* temperature
-* pressure
-* motor speed
-* tank level
-* valve position
-* flow
-* alarm status
-* running status
-* heartbeat
+```text
+Python factory simulator
+        |
+        | MQTT
+        v
+Mosquitto broker
+        |
+        v
+UNS-style topic structure
+```
 
 MQTT base topic:
 
@@ -78,7 +85,16 @@ iiot-demo/
     │   └── modbus_factory.py
     ├── mosquitto/
     │   └── house-factory.conf
-    └── requirements.txt
+    ├── ignition/
+    │   ├── README.md
+    │   ├── project-export/
+    │   ├── tag-export/
+    │   └── screenshots/
+    ├── screenshots/
+    ├── requirements.txt
+    ├── Dockerfile
+    ├── docker-compose.yml
+    └── .dockerignore
 ```
 
 ## Technologies used
@@ -87,21 +103,16 @@ iiot-demo/
 * Modbus TCP
 * MQTT
 * Mosquitto
+* Docker
+* Docker Compose
 * Raspberry Pi / Linux
+* Windows + WSL2 test environment
+* Ignition
+* Ignition Perspective
 * UNS-style topic structure
 * JSON payloads
 
-Planned future additions may include:
-
-* Ignition Perspective dashboard
-* MQTT Engine / MQTT Transmission concepts
-* OPC UA integration
-* Docker Compose setup
-* historical data logging
-* Grafana or web dashboard
-* systemd service for automatic startup
-
-## Quick start
+## Quick start with Docker
 
 Open the House Factory project:
 
@@ -109,36 +120,46 @@ Open the House Factory project:
 cd house-factory-modbus-mqtt
 ```
 
-Create and activate a Python virtual environment:
+Start the demo stack:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+docker compose up --build
 ```
 
-Install dependencies:
+This starts:
 
-```bash
-pip install -r requirements.txt
-```
-
-Run the simulator:
-
-```bash
-python src/modbus_factory.py
+```text
+Mosquitto MQTT broker  -> localhost:1883
+Modbus TCP simulator   -> localhost:5020
 ```
 
 Subscribe to MQTT messages:
 
 ```bash
-mosquitto_sub -h localhost -t "uns/v1/house-factory/#" -v
+docker exec -it house-factory-mosquitto mosquitto_sub -h localhost -t "uns/v1/house-factory/#" -v
+```
+
+Stop the demo:
+
+```bash
+docker compose down
+```
+
+## Local run without Docker
+
+The project can also be run directly on Raspberry Pi / Linux with Python and Mosquitto installed.
+
+See the detailed project instructions here:
+
+```text
+house-factory-modbus-mqtt/README.md
 ```
 
 ## Security note
 
 This repository is intended for local lab and portfolio demonstration use.
 
-The example Mosquitto configuration may allow anonymous access for simplicity. Do not expose the broker or Modbus TCP server directly to the internet.
+The example Mosquitto configuration may allow anonymous access for simplicity. Do not expose the MQTT broker, Modbus TCP server, or Ignition Gateway directly to the internet.
 
 For real industrial or production environments, use:
 
@@ -155,7 +176,11 @@ For real industrial or production environments, use:
 The goal of this repository is to demonstrate a practical IIoT data path:
 
 ```text
-Industrial-style data source -> Raspberry Pi / Linux -> MQTT -> UNS-style namespace -> SCADA / dashboard / analytics
+Industrial-style data source
+        -> Raspberry Pi / Linux / Docker
+        -> MQTT / Modbus TCP
+        -> UNS-style namespace
+        -> Ignition / SCADA / dashboard / analytics
 ```
 
 It is designed as a small but expandable foundation for learning and demonstrating industrial connectivity concepts.

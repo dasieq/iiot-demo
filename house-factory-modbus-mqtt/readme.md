@@ -4,20 +4,39 @@ This project is a small IIoT demo for a Raspberry Pi, Linux machine, or Docker e
 
 It simulates a simple factory line by exposing process values over **Modbus TCP** and publishing the same values to an **MQTT broker** using a simple UNS-style topic structure.
 
-The goal is to demonstrate a basic industrial data flow:
+The project also includes an **Ignition integration** with exported tags and Perspective resources for visualizing the simulated process data.
+
+## Industrial data flow
+
+The demo represents two common IIoT / OT data paths.
+
+### Modbus TCP to Ignition
 
 ```text
 Python factory simulator
         |
         | Modbus TCP
         v
-Industrial clients / SCADA / Ignition
+Ignition OPC UA Server / Modbus device
+        |
+        v
+Ignition tags
+        |
+        v
+Perspective dashboard
+```
 
+### MQTT / UNS-style publishing
+
+```text
 Python factory simulator
         |
         | MQTT
         v
-MQTT broker / UNS-style namespace
+Mosquitto MQTT broker
+        |
+        v
+UNS-style MQTT topic structure
 ```
 
 The project can be run in two ways:
@@ -38,6 +57,10 @@ The project can be run in two ways:
 * Docker Compose deployment
 * Local Mosquitto broker configuration example
 * Environment-variable configuration for Docker and local use
+* Ignition tag export
+* Ignition Perspective project resources
+* Perspective dashboard documentation
+* Modbus raw-value scaling in Ignition expression tags
 
 ## Project structure
 
@@ -48,6 +71,14 @@ house-factory-modbus-mqtt/
 │   └── modbus_factory.py
 ├── mosquitto/
 │   └── house-factory.conf
+├── ignition/
+│   ├── README.md
+│   ├── project-export/
+│   ├── tag-export/
+│   │   └── house-factory-tags.json
+│   └── screenshots/
+├── screenshots/
+│   └── mqtt-explorer-topics.png
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
@@ -114,7 +145,7 @@ Python packages:
 
 ```text
 paho-mqtt
-pymodbus
+pymodbus==2.5.3
 ```
 
 ## Local installation on Raspberry Pi / Linux
@@ -329,6 +360,92 @@ Port: 1883
 Username: empty
 Password: empty
 TLS: disabled
+```
+
+Example topic tree:
+
+```text
+uns
+└── v1
+    └── house-factory
+        └── line-01
+            ├── process
+            │   ├── temperature
+            │   ├── pressure
+            │   ├── motor_speed
+            │   ├── tank_level
+            │   ├── valve_position
+            │   └── flow
+            └── status
+                ├── alarm
+                ├── operation
+                ├── connection
+                └── heartbeat
+```
+
+Example screenshot:
+
+```md
+![MQTT Explorer topic tree](screenshots/mqtt-explorer-topics.png)
+```
+
+## Ignition integration
+
+This project includes an Ignition demo integration.
+
+Ignition resources are located in:
+
+```text
+ignition/
+```
+
+The Ignition side demonstrates:
+
+* Modbus TCP data consumption through Ignition OPC tags
+* raw Modbus holding register values
+* expression tags for engineering-unit scaling
+* Perspective dashboard visualization
+* basic SCADA / IIoT process monitoring concept
+
+Example data flow:
+
+```text
+Python Modbus simulator -> Ignition OPC tags -> Perspective dashboard
+```
+
+The MQTT side remains available in parallel:
+
+```text
+Python simulator -> Mosquitto MQTT broker -> UNS-style topics
+```
+
+More details are available in:
+
+```text
+ignition/README.md
+```
+
+## Ignition tag scaling
+
+The Ignition tag export contains raw OPC tags and expression tags.
+
+Example raw tags:
+
+```text
+Temperature_raw
+Pressure_raw
+TankLevel_raw
+```
+
+Example expression tags:
+
+```text
+Temperature = Temperature_raw / 10
+Pressure    = Pressure_raw / 10
+TankLevel   = TankLevel_raw / 10
+```
+
+This is a typical SCADA pattern where raw PLC/Modbus values are converted into engineering values in the visualization layer.
 
 ## Security note
 
@@ -340,7 +457,7 @@ The demo Mosquitto configuration uses anonymous access:
 allow_anonymous true
 ```
 
-Do not expose this MQTT broker or Modbus TCP server directly to the internet.
+Do not expose this MQTT broker, Modbus TCP server, or Ignition Gateway directly to the internet.
 
 For real deployments, use:
 
@@ -351,12 +468,13 @@ For real deployments, use:
 * network segmentation
 * non-public broker access
 * proper industrial cybersecurity practices
+* secure credential management
 
 ## Possible next steps
 
 This demo can be extended with:
 
-* Ignition Perspective dashboard
+* extended Ignition Perspective dashboard
 * MQTT Engine / UNS integration
 * historical data logging
 * Grafana dashboard
@@ -365,6 +483,8 @@ This demo can be extended with:
 * alarm/event handling
 * systemd service for automatic startup
 * Docker deployment on Raspberry Pi
+* simple REST API for exposing selected process values
+* GitHub Actions workflow for basic validation
 
 ## Purpose
 
@@ -372,6 +492,12 @@ This project demonstrates a simple but realistic IIoT data pipeline:
 
 ```text
 Modbus TCP data source -> Raspberry Pi / Linux / Docker -> MQTT broker -> UNS-style topics
+```
+
+It also demonstrates how the same simulated process data can be consumed by Ignition and visualized in a Perspective dashboard:
+
+```text
+Modbus TCP data source -> Ignition OPC tags -> Perspective dashboard
 ```
 
 It can be used as a foundation for a larger industrial connectivity demo involving Ignition, MQTT, OPC UA and real-time production data visualization.
