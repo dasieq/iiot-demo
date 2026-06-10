@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 
-CMD ["python", "src/modbus_factory.py"]
+CMD ["python", "src/house_factory_simulator.py"]

@@ -1,2 +1,5 @@
 paho-mqtt
 pymodbus==2.5.3
+asyncua
+mqtt-spb-wrapper
+psycopg2-binary

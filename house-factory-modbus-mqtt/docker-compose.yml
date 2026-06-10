@@ -6,15 +6,138 @@ services:
       - "1883:1883"
     volumes:
       - ./mosquitto/house-factory.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
 
-  modbus-factory:
+  postgres:
+    image: postgres:17
+    container_name: house-factory-postgres
+    environment:
+      POSTGRES_DB: iiot_history
+      POSTGRES_USER: iiot_user
+      POSTGRES_PASSWORD: iiot_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iiot_user -d iiot_history"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  simulator:
     build: .
-    container_name: house-factory-modbus
+    container_name: house-factory-simulator
     depends_on:
       - mosquitto
-    ports:
-      - "5020:5020"
+    command: ["python", "src/house_factory_simulator.py"]
     environment:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
-      BASE_TOPIC: uns/v1/house-factory/line-01
+      BASE_TOPIC: plain-uns/v1/house-factory/line-01
+      PUBLISH_INTERVAL_SECONDS: 1
+    restart: unless-stopped
+
+  opcua-server:
+    build: .
+    container_name: house-factory-opcua
+    depends_on:
+      - mosquitto
+      - simulator
+    command: ["python", "src/house_factory_opcua_server.py"]
+    ports:
+      - "4840:4840"
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      SOURCE_BASE_TOPIC: plain-uns/v1/house-factory/line-01
+      OPCUA_HOST: 0.0.0.0
+      OPCUA_PORT: 4840
+      OPCUA_ENDPOINT: opc.tcp://0.0.0.0:4840/house-factory/server/
+      OPCUA_NAMESPACE_URI: urn:house-factory:line-01
+      OPCUA_SERVER_NAME: House Factory OPC UA Server
+      OPCUA_UPDATE_INTERVAL_SECONDS: 0.2
+    restart: unless-stopped
+
+  sparkplug:
+    build: .
+    container_name: house-factory-sparkplug
+    depends_on:
+      - mosquitto
+      - simulator
+    command: ["python", "src/house_factory_sparkplug.py"]
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      SOURCE_BASE_TOPIC: plain-uns/v1/house-factory/line-01
+      SPARKPLUG_NAMESPACE: spBv1.0
+      SPARKPLUG_GROUP_ID: house-factory
+      SPARKPLUG_EDGE_NODE_ID: line-01
+      SPARKPLUG_CLIENT_ID: manual-sparkplug-bridge-line-01
+      SPARKPLUG_PUBLISH_INTERVAL_SECONDS: 1
+      SPARKPLUG_INITIAL_WAIT_SECONDS: 5
+    restart: unless-stopped
+
+  postgres-logger:
+    build: .
+    container_name: house-factory-postgres-logger
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      simulator:
+        condition: service_started
+    command: ["python", "src/house_factory_postgres_logger.py"]
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      SUBSCRIBE_TOPIC: plain-uns/v1/house-factory/line-01/#
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DATABASE: iiot_history
+      PG_USER: iiot_user
+      PG_PASSWORD: iiot_password
+      RETENTION_HOURS: 24
+      CLEANUP_INTERVAL_SECONDS: 60
+    restart: unless-stopped
+
+  modbus-bridge:
+    build: .
+    container_name: house-factory-modbus-bridge
+    depends_on:
+      - mosquitto
+      - simulator
+    command: ["python", "src/house_factory_modbus_bridge.py"]
+    ports:
+      - "5021:5021"
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      SOURCE_BASE_TOPIC: plain-uns/v1/house-factory/line-01
+      MODBUS_HOST: 0.0.0.0
+      MODBUS_PORT: 5021
+    restart: unless-stopped
+
+  sqlite-logger:
+    build: .
+    container_name: house-factory-sqlite-logger
+    depends_on:
+      - mosquitto
+      - simulator
+    command: ["python", "src/house_factory_sql_logger.py"]
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      SUBSCRIBE_TOPIC: plain-uns/v1/house-factory/line-01/#
+      SQLITE_DB_FILE: /data/iiot_history.db
+      RETENTION_HOURS: 24
+      CLEANUP_INTERVAL_SECONDS: 60
+    volumes:
+      - sqlite_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  sqlite_data:

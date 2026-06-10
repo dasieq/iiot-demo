@@ -2,88 +2,92 @@
   "tags": [
     {
       "name": "Alarm",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR7",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR7",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
       "name": "Flow",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR6",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR6",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
+      "name": "Flow OPC",
+      "opcItemPath": "nsu\u003durn:house-factory:line-01;i\u003d10",
+      "opcServer": "House Factory OPC UA",
+      "tagType": "AtomicTag",
+      "valueSource": "opc"
+    },
+    {
       "name": "Heartbeat",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR9",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR10",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
       "name": "MotorSpeed",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR3",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR3",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
-      "dataType": "Float4",
-      "engUnit": "",
-      "expression": "{[default]Pressure_raw} / 10",
-      "formatString": "#,##0.##",
+      "name": "Operation",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR8",
+      "opcServer": "Ignition OPC UA Server",
+      "tagType": "AtomicTag",
+      "valueSource": "opc"
+    },
+    {
+      "dataType": "Float8",
+      "expression": "{[.]PressureRaw} / 10.0",
       "name": "Pressure",
       "tagType": "AtomicTag",
       "valueSource": "expr"
     },
     {
-      "name": "Pressure_raw",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR2",
-      "opcServer": "Ignition OPC UA Server",
-      "tagType": "AtomicTag",
-      "valueSource": "opc"
-    },
-    {
-      "name": "Running",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR8",
+      "name": "PressureRaw",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR2",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
       "dataType": "Float4",
-      "expression": "{[default]TankLevel_raw} / 10",
+      "expression": "{[.]TankLevelRaw} / 10.0",
       "name": "TankLevel",
       "tagType": "AtomicTag",
       "valueSource": "expr"
     },
     {
-      "name": "TankLevel_raw",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR4",
+      "name": "TankLevelRaw",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR4",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
-      "dataType": "Float4",
-      "engUnit": "",
-      "expression": "{[default]Temperature_raw} / 10",
-      "formatString": "#,##0.0",
+      "dataType": "Float8",
+      "expression": "{[.]TemperatureRaw} / 10.0",
       "name": "Temperature",
       "tagType": "AtomicTag",
       "valueSource": "expr"
     },
     {
-      "name": "Temperature_raw",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR1",
+      "dataType": "Int4",
+      "name": "TemperatureRaw",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR1",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
     },
     {
       "name": "ValvePosition",
-      "opcItemPath": "ns\u003d1;s\u003d[Raspberry_factory]HR5",
+      "opcItemPath": "ns\u003d1;s\u003d[House-Factory-Modbus]HR5",
       "opcServer": "Ignition OPC UA Server",
       "tagType": "AtomicTag",
       "valueSource": "opc"
