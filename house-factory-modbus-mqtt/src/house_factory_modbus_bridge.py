@@ -4,7 +4,11 @@ from threading import Thread, Lock
 
 import paho.mqtt.client as mqtt
 
-from pymodbus.server.sync import StartTcpServer
+try:
+    from pymodbus.server import StartTcpServer
+except ImportError:
+    from pymodbus.server.sync import StartTcpServer
+    
 from pymodbus.datastore import (
     ModbusSequentialDataBlock,
     ModbusSlaveContext,
