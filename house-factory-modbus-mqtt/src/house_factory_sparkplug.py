@@ -129,12 +129,46 @@ data_changed = False
 birth_sent = False
 rebirth_requested = False
 
+# Sparkplug message sequence.
+# Important:
+# After every NBIRTH, Ignition expects the next NDATA to have seq = 1.
 seq = 0
+
+# Birth/death sequence.
+# For this simple demo it stays fixed.
+# The same bdSeq is used in NBIRTH and NDEATH.
 bdSeq = 0
 
 
 def current_ms():
     return int(time.time() * 1000)
+
+
+def next_seq():
+    """
+    Return current Sparkplug payload sequence number and increment it.
+
+    Expected flow after NBIRTH:
+        NBIRTH seq = 0
+        first NDATA seq = 1
+        next NDATA seq = 2
+        ...
+    """
+    global seq
+
+    value = seq
+    seq = (seq + 1) % 256
+    return value
+
+
+def reset_sequence_for_birth():
+    """
+    Reset Sparkplug sequence before NBIRTH/rebirth.
+
+    Ignition MQTT Engine expects the sequence to restart after a valid birth.
+    """
+    global seq
+    seq = 0
 
 
 def cast_value(value, metric_type):
@@ -171,6 +205,7 @@ def add_all_process_metrics(payload, values):
 def create_nbirth_payload(values):
     payload = spb_protobuf.getNodeBirthPayload()
     payload.timestamp = current_ms()
+    payload.seq = next_seq()
 
     spb_protobuf.addMetric(
         payload,
@@ -181,21 +216,27 @@ def create_nbirth_payload(values):
         timestamp=current_ms(),
     )
 
+    # Required control metric for MQTT Engine rebirth requests.
+    spb_protobuf.addMetric(
+        payload,
+        "Node Control/Rebirth",
+        None,
+        MetricDataType.Boolean,
+        False,
+        timestamp=current_ms(),
+    )
+
     add_all_process_metrics(payload, values)
 
     return payload.SerializeToString()
 
 
 def create_ndata_payload(values):
-    global seq
-
     payload = spb_protobuf.getDdataPayload()
     payload.timestamp = current_ms()
-    payload.seq = seq
+    payload.seq = next_seq()
 
     add_all_process_metrics(payload, values)
-
-    seq = (seq + 1) % 256
 
     return payload.SerializeToString()
 
@@ -221,6 +262,10 @@ def publish_nbirth(client):
 
     with lock:
         values = dict(latest_values)
+
+    # Critical fix:
+    # Every birth/rebirth restarts the Sparkplug message sequence.
+    reset_sequence_for_birth()
 
     client.publish(
         NBIRTH_TOPIC,
@@ -352,6 +397,7 @@ def main():
     print(f"Client ID:      {SPARKPLUG_CLIENT_ID}")
     print(f"Publish period: {SPARKPLUG_PUBLISH_INTERVAL_SECONDS} s")
     print(f"Initial wait:   {INITIAL_WAIT_SECONDS} s")
+    print(f"bdSeq:          {bdSeq}")
 
     client = mqtt.Client(client_id=SPARKPLUG_CLIENT_ID)
 
@@ -389,6 +435,10 @@ def main():
             if do_rebirth:
                 print("Handling rebirth request")
                 publish_nbirth(client)
+
+                # After a rebirth, skip this loop's normal data publish.
+                # The next NDATA should come from the next data update.
+                do_publish = False
 
             if do_publish and birth_sent:
                 publish_ndata(client)
