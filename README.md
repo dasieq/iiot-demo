@@ -1,6 +1,6 @@
 # IIoT Demo Portfolio
 
-This repository contains practical Industrial IoT / OT integration demos.
+This repository contains a practical Industrial IoT / OT integration demo.
 
 The main project is:
 
@@ -37,7 +37,7 @@ Connection status
 Heartbeat
 ```
 
-The goal is to demonstrate practical data integration between simulated OT systems, MQTT, OPC UA, Modbus TCP, databases, and Ignition.
+The goal is to demonstrate practical OT/IT data integration between simulated shopfloor systems, MQTT, OPC UA, Modbus TCP, databases, Docker and Ignition.
 
 ---
 
@@ -95,9 +95,35 @@ Perspective dashboard
 
 ---
 
+## Quick start
+
+From the project folder:
+
+```bash
+cd house-factory-modbus-mqtt
+docker compose up -d --build
+docker compose ps
+```
+
+Expected result: all services should be `Up`, and PostgreSQL should be `healthy`.
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Remove containers and stored database volumes:
+
+```bash
+docker compose down -v
+```
+
+---
+
 ## Docker services
 
-The demo is started with Docker Compose and contains the following services:
+The Docker Compose stack contains:
 
 ```text
 house-factory-mosquitto
@@ -113,22 +139,11 @@ house-factory-sqlite-logger
 Useful commands:
 
 ```bash
-cd house-factory-modbus-mqtt
-docker compose up -d --build
 docker compose ps
 docker compose logs -f
-```
-
-Stop the stack:
-
-```bash
-docker compose down
-```
-
-Remove volumes as well:
-
-```bash
-docker compose down -v
+docker compose logs -f simulator
+docker compose logs -f postgres-logger
+docker compose logs -f sparkplug
 ```
 
 ---
@@ -153,6 +168,64 @@ Password: iiot_password
 ```
 
 These credentials are for local demo use only.
+
+---
+
+## Basic validation
+
+Check live MQTT data:
+
+```bash
+docker compose exec mosquitto mosquitto_sub -t 'plain-uns/v1/house-factory/line-01/#' -v
+```
+
+Check PostgreSQL historian data:
+
+```bash
+docker compose exec postgres psql -U iiot_user -d iiot_history
+```
+
+Then run:
+
+```sql
+SELECT id, timestamp, topic, value, unit, quality
+FROM tag_history
+ORDER BY id DESC
+LIMIT 10;
+```
+
+Exit PostgreSQL:
+
+```sql
+\q
+```
+
+Check SQLite historian data:
+
+```bash
+docker compose exec -T sqlite-logger python - <<'EOF'
+import sqlite3
+
+db = "/data/iiot_history.db"
+conn = sqlite3.connect(db)
+cur = conn.cursor()
+
+cur.execute("SELECT COUNT(*) FROM tag_history;")
+print("Rows:", cur.fetchone()[0])
+
+cur.execute("""
+SELECT id, timestamp, topic, value, unit, quality
+FROM tag_history
+ORDER BY id DESC
+LIMIT 10
+""")
+
+for row in cur.fetchall():
+    print(row)
+
+conn.close()
+EOF
+```
 
 ---
 
@@ -194,7 +267,30 @@ house-factory-modbus-mqtt/screenshots/
 house-factory-modbus-mqtt/ignition/screenshots/
 ```
 
-They show the MQTT namespace, Ignition tag browser, and Perspective dashboard.
+They show the MQTT namespace, Ignition tag browser, database connection, Docker services and Perspective dashboard.
+
+---
+
+## Tested environment
+
+The stack has been tested with Docker Compose on:
+
+```text
+Windows / Docker Desktop
+WSL Ubuntu
+```
+
+The main external services were verified locally:
+
+```text
+MQTT
+OPC UA
+Modbus TCP
+PostgreSQL
+SQLite logger
+Sparkplug B MQTT
+Ignition integration
+```
 
 ---
 
@@ -217,7 +313,23 @@ Ignition integration
 Dockerized deployment
 ```
 
-The project is not intended for production use. It is a local lab environment for learning, testing, and demonstrating IIoT integration concepts.
+The project is not intended for production use. It is a local lab environment for learning, testing and demonstrating IIoT integration concepts.
+
+---
+
+## Roadmap
+
+Possible next steps:
+
+```text
+HTTP API over SQLite / PostgreSQL historian
+Optional cloud telemetry bridge
+Databricks / cloud analytics concept
+Improved Ignition Perspective dashboard
+Additional screenshots and setup documentation
+```
+
+The local OT layer remains responsible for live data access. Cloud or analytics extensions are intended for selected telemetry, reporting, long-term storage and analysis.
 
 ---
 
@@ -237,3 +349,5 @@ least-privilege users
 secure credential management
 proper OT/IT security design
 ```
+
+The default database credentials are local demo credentials only and must not be used in production.
