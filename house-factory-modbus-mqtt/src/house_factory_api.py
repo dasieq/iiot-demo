@@ -29,10 +29,12 @@ def get_connection():
     """
     Open a SQLite connection for one API request.
 
-    timeout helps if the SQLite logger is writing at the same moment.
-    row_factory makes rows convertible to dictionaries.
+    WAL + busy_timeout help when the logger writes
+    and the API reads at the same time.
     """
-    conn = sqlite3.connect(DB_FILE, timeout=5)
+    conn = sqlite3.connect(DB_FILE, timeout=10)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=10000;")
     conn.row_factory = sqlite3.Row
     return conn
 

@@ -33,9 +33,14 @@ CLEANUP_INTERVAL_SECONDS = int(os.getenv("CLEANUP_INTERVAL_SECONDS", "60"))
 # -----------------------------
 last_cleanup_time = 0
 
+def get_connection():
+    conn = sqlite3.connect(DB_FILE, timeout=10)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=10000;")
+    return conn
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
@@ -76,7 +81,7 @@ def save_to_db(topic, payload_text):
         unit = data.get("unit", "")
         quality = data.get("quality", "")
 
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_connection()
         cur = conn.cursor()
 
         cur.execute("""
@@ -112,7 +117,7 @@ def cleanup_old_rows():
     cutoff = datetime.now(timezone.utc) - timedelta(hours=RETENTION_HOURS)
     cutoff_iso = cutoff.isoformat()
 
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
