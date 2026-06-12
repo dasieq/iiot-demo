@@ -138,6 +138,24 @@ services:
       - sqlite_data:/data
     restart: unless-stopped
 
+
+  api:
+    build: .
+    container_name: house-factory-api
+    depends_on:
+      - sqlite-logger
+    command: ["python", "src/house_factory_api.py"]
+    ports:
+      - "8000:8000"
+    environment:
+      API_TITLE: House Factory IIoT API
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      SQLITE_DB_FILE: /data/iiot_history.db
+    volumes:
+      - sqlite_data:/data
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   sqlite_data:

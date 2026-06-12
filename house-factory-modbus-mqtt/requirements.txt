@@ -1,5 +1,7 @@
-paho-mqtt
+paho-mqtt<3
 pymodbus==2.5.3
 asyncua
 mqtt-spb-wrapper
 psycopg2-binary
+fastapi
+uvicorn[standard]
