@@ -138,6 +138,28 @@ services:
       - sqlite_data:/data
     restart: unless-stopped
 
+  aws-iot-publisher:
+    build: .
+    container_name: house-factory-aws-iot-publisher
+    depends_on:
+      - mosquitto
+      - simulator
+    command: ["python", "src/house_factory_aws_iot_publisher.py"]
+    environment:
+      LOCAL_MQTT_HOST: mosquitto
+      LOCAL_MQTT_PORT: 1883
+      LOCAL_SUBSCRIBE_TOPIC: plain-uns/v1/house-factory/line-01/#
+      LOCAL_BASE_TOPIC: plain-uns/v1/house-factory/line-01
+      AWS_IOT_ENDPOINT: a39fq8pk1n1f0l-ats.iot.eu-north-1.amazonaws.com
+      AWS_CLIENT_ID: basicPubSub
+      AWS_CERT_FILE: aws/raspberry-iiot-demo.cert.pem
+      AWS_KEY_FILE: aws/raspberry-iiot-demo.private.key
+      AWS_ROOT_CA_FILE: aws/root-CA.crt
+      AWS_TOPIC_PREFIX: iiot/house-factory/line-01
+      CLOUD_PUBLISH_INTERVAL_SECONDS: 5
+    volumes:
+      - ./aws:/app/aws:ro
+    restart: unless-stopped
 
   api:
     build: .

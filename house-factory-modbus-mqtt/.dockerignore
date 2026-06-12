@@ -4,3 +4,7 @@ __pycache__/
 .git/
 *.log
 .env
+aws/
+*.key
+*.pem
+*.crt
