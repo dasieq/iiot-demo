@@ -8,7 +8,7 @@ The main project is:
 house-factory-modbus-mqtt/
 ```
 
-It demonstrates how shopfloor-style process data can be generated, published, transformed, stored and exposed through common industrial and IT interfaces: MQTT, UNS-style topics, Sparkplug B, OPC UA, Modbus TCP, PostgreSQL, SQLite, HTTP API, Docker Compose and Ignition.
+It demonstrates how shopfloor-style process data can be generated, published, transformed, stored and exposed through common industrial and IT interfaces: MQTT, UNS-style topics, Sparkplug B, OPC UA, Modbus TCP, PostgreSQL, SQLite, HTTP API, Docker Compose, AWS IoT Core and Ignition.
 
 ---
 
@@ -71,6 +71,9 @@ House Factory simulator
         +--> SQLite historian
         |       Docker volume: sqlite_data
         |
+        +--> AWS IoT Core publisher
+        |       iiot/house-factory/line-01/...
+        |
         +--> FastAPI HTTP API
                 http://localhost:8000
 ```
@@ -99,6 +102,10 @@ iiot-demo/
     ├── requirements.txt
     ├── mosquitto/
     │   └── house-factory.conf
+    ├── aws/
+    │   ├── root-CA.crt
+    │   ├── raspberry-iiot-demo.cert.pem
+    │   └── raspberry-iiot-demo.private.key
     ├── src/
     │   ├── house_factory_simulator.py
     │   ├── house_factory_sparkplug.py
@@ -106,6 +113,7 @@ iiot-demo/
     │   ├── house_factory_modbus_bridge.py
     │   ├── house_factory_postgres_logger.py
     │   ├── house_factory_sql_logger.py
+    │   ├── house_factory_aws_iot_publisher.py
     │   └── house_factory_api.py
     ├── screenshots/
     │   └── mqtt-explorer-topics.png
@@ -166,6 +174,7 @@ modbus-bridge      Modbus TCP bridge exposing selected values as holding registe
 postgres           PostgreSQL database for historian data
 postgres-logger    MQTT to PostgreSQL historian logger
 sqlite-logger      MQTT to SQLite historian logger
+aws-iot-publisher  Optional publisher from local MQTT / UNS topics to AWS IoT Core
 api                FastAPI HTTP API reading data from the SQLite historian
 ```
 
@@ -180,6 +189,7 @@ house-factory-modbus-bridge
 house-factory-postgres
 house-factory-postgres-logger
 house-factory-sqlite-logger
+house-factory-aws-iot-publisher
 house-factory-api
 ```
 
@@ -193,6 +203,7 @@ docker compose logs -f opcua-server
 docker compose logs -f modbus-bridge
 docker compose logs -f postgres-logger
 docker compose logs -f sqlite-logger
+docker compose logs -f aws-iot-publisher
 docker compose logs -f api
 ```
 
@@ -463,6 +474,86 @@ The bridge includes a `Node Control/Rebirth` metric so Ignition MQTT Engine can 
 
 ---
 
+## AWS IoT Core publisher
+
+The Docker Compose stack also contains an optional cloud publisher service:
+
+```text
+aws-iot-publisher
+```
+
+The service is implemented in:
+
+```text
+src/house_factory_aws_iot_publisher.py
+```
+
+It subscribes to the local plain MQTT / UNS-style topic tree:
+
+```text
+plain-uns/v1/house-factory/line-01/#
+```
+
+and republishes selected values to AWS IoT Core under this cloud topic prefix:
+
+```text
+iiot/house-factory/line-01
+```
+
+The publisher keeps the local edge architecture as the primary layer. The simulator, MQTT broker, OPC UA server, Modbus bridge, historians and API continue to run locally. AWS IoT Core is used only as an optional cloud integration layer for remote data ingestion, testing and future analytics.
+
+AWS IoT access files should be placed in:
+
+```text
+house-factory-modbus-mqtt/aws/
+```
+
+Expected files used by the current Docker Compose configuration:
+
+```text
+aws/root-CA.crt
+aws/raspberry-iiot-demo.cert.pem
+aws/raspberry-iiot-demo.private.key
+```
+
+The `aws/` directory is mounted read-only into the container:
+
+```text
+./aws:/app/aws:ro
+```
+
+Main environment variables in `docker-compose.yml`:
+
+```text
+LOCAL_MQTT_HOST=mosquitto
+LOCAL_MQTT_PORT=1883
+LOCAL_SUBSCRIBE_TOPIC=plain-uns/v1/house-factory/line-01/#
+LOCAL_BASE_TOPIC=plain-uns/v1/house-factory/line-01
+AWS_IOT_ENDPOINT=<your AWS IoT Core endpoint>
+AWS_CLIENT_ID=basicPubSub
+AWS_CERT_FILE=aws/raspberry-iiot-demo.cert.pem
+AWS_KEY_FILE=aws/raspberry-iiot-demo.private.key
+AWS_ROOT_CA_FILE=aws/root-CA.crt
+AWS_TOPIC_PREFIX=iiot/house-factory/line-01
+CLOUD_PUBLISH_INTERVAL_SECONDS=5
+```
+
+Run only the minimum local stack plus AWS publisher:
+
+```bash
+docker compose up -d --build mosquitto simulator aws-iot-publisher
+```
+
+Check AWS publisher logs:
+
+```bash
+docker compose logs -f aws-iot-publisher
+```
+
+Security note: the included AWS certificate and key paths are for demo configuration. In a real repository, private keys and production certificates should not be committed to Git. Use local files, secrets management, environment-specific deployment configuration or a secure provisioning process instead.
+
+---
+
 ## Ignition integration
 
 Ignition resources are stored in:
@@ -501,6 +592,7 @@ mqtt-spb-wrapper
 psycopg2-binary
 fastapi
 uvicorn[standard]
+awsiotsdk
 ```
 
 Notes:
@@ -511,6 +603,7 @@ Notes:
 - `mqtt-spb-wrapper` is used by the Sparkplug B bridge.
 - `psycopg2-binary` is used by the PostgreSQL logger.
 - `fastapi` and `uvicorn` are used by the HTTP API service.
+- `awsiotsdk` is used by the optional AWS IoT Core publisher.
 - `sqlite3` is part of the Python standard library and does not need to be installed separately.
 
 ---
@@ -552,6 +645,7 @@ Modbus TCP bridge
 historian logging
 SQL access
 HTTP API access
+optional AWS IoT Core publishing
 Dockerized deployment
 Ignition integration
 ```
