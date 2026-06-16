@@ -116,7 +116,12 @@ iiot-demo/
     │   ├── house_factory_aws_iot_publisher.py
     │   └── house_factory_api.py
     ├── screenshots/
-    │   └── mqtt-explorer-topics.png
+    │   ├── API-SQLite.png
+    │   ├── AWS-IoT-Core.png
+    │   ├── DBeaver-PostgreSQL.png
+    │   ├── MQTTExplorer-topics.png
+    │   ├── QModMaster-modbus.png      
+    │   └── UAExpert-OPCUA.png 
     └── ignition/
         ├── project-export/
         ├── screenshots/
@@ -124,6 +129,32 @@ iiot-demo/
 ```
 
 ---
+
+## Screenshots
+
+### Local UNS / MQTT topics
+
+![MQTT Explorer topics](screenshots/MQTTExplorer-topics.png)
+
+### OPC UA access with UAExpert
+
+![UAExpert OPC UA](screenshots/UAExpert-OPCUA.png)
+
+### Modbus TCP access with QModMaster
+
+![QModMaster Modbus TCP](screenshots/QModMaster-Modbus.png)
+
+### PostgreSQL historian in DBeaver
+
+![DBeaver PostgreSQL historian](screenshots/DBeaver-PostgreSQL.png)
+
+### REST API over SQLite historian
+
+![Swagger API SQLite historian](screenshots/API-SQLite.png)
+
+### AWS IoT Core MQTT test client
+
+![AWS IoT Core MQTT test client](screenshots/AWS-IoT-Core.png)
 
 ## Quick start with Docker Compose
 
