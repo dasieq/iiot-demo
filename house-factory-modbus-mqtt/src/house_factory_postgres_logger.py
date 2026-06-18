@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 
 import paho.mqtt.client as mqtt
 import psycopg2
+from psycopg2.extras import execute_batch
 
 
 # -----------------------------
@@ -29,13 +30,24 @@ PG_USER = os.getenv("PG_USER", "iiot_user")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "iiot_password")
 
 RETENTION_HOURS = int(os.getenv("RETENTION_HOURS", "24"))
-CLEANUP_INTERVAL_SECONDS = int(os.getenv("CLEANUP_INTERVAL_SECONDS", "60"))
+CLEANUP_INTERVAL_SECONDS = int(os.getenv("CLEANUP_INTERVAL_SECONDS", "1800"))
+
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
+FLUSH_INTERVAL_SECONDS = float(os.getenv("FLUSH_INTERVAL_SECONDS", "2"))
+
+PRINT_EVERY_BATCH = os.getenv("PRINT_EVERY_BATCH", "true").lower() == "true"
 
 
 # -----------------------------
 # Runtime state
 # -----------------------------
+conn = None
+cur = None
+buffer = []
+
+last_flush_time = time.time()
 last_cleanup_time = 0
+saved_total = 0
 
 
 def get_connection():
@@ -48,11 +60,21 @@ def get_connection():
     )
 
 
-def init_db():
-    conn = get_connection()
-    cur = conn.cursor()
+def ensure_db_connection():
+    global conn, cur
 
-    cur.execute("""
+    if conn is None or conn.closed:
+        conn = get_connection()
+        cur = conn.cursor()
+
+    return conn, cur
+
+
+def init_db():
+    conn_init = get_connection()
+    cur_init = conn_init.cursor()
+
+    cur_init.execute("""
         CREATE TABLE IF NOT EXISTS tag_history (
             id SERIAL PRIMARY KEY,
             timestamp TIMESTAMPTZ NOT NULL,
@@ -64,22 +86,22 @@ def init_db():
         )
     """)
 
-    cur.execute("""
+    cur_init.execute("""
         CREATE INDEX IF NOT EXISTS idx_tag_history_timestamp
         ON tag_history(timestamp)
     """)
 
-    cur.execute("""
+    cur_init.execute("""
         CREATE INDEX IF NOT EXISTS idx_tag_history_topic
         ON tag_history(topic)
     """)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn_init.commit()
+    cur_init.close()
+    conn_init.close()
 
 
-def save_to_db(topic, payload_text):
+def add_to_buffer(topic, payload_text):
     try:
         data = json.loads(payload_text)
 
@@ -91,10 +113,36 @@ def save_to_db(topic, payload_text):
         unit = data.get("unit", "")
         quality = data.get("quality", "")
 
-        conn = get_connection()
-        cur = conn.cursor()
+        buffer.append((
+            timestamp,
+            topic,
+            str(value),
+            unit,
+            quality,
+            payload_text,
+        ))
 
-        cur.execute("""
+    except Exception as exc:
+        print(f"Payload parse error for topic {topic}: {exc}")
+        print(f"Payload was: {payload_text}")
+
+
+def flush_buffer(force=False):
+    global buffer, last_flush_time, saved_total, conn, cur
+
+    now = time.time()
+
+    if not buffer:
+        return
+
+    if not force:
+        if len(buffer) < BATCH_SIZE and (now - last_flush_time) < FLUSH_INTERVAL_SECONDS:
+            return
+
+    try:
+        db_conn, db_cur = ensure_db_connection()
+
+        execute_batch(db_cur, """
             INSERT INTO tag_history (
                 timestamp,
                 topic,
@@ -104,45 +152,57 @@ def save_to_db(topic, payload_text):
                 raw_json
             )
             VALUES (%s, %s, %s, %s, %s, %s::jsonb)
-        """, (
-            timestamp,
-            topic,
-            str(value),
-            unit,
-            quality,
-            payload_text,
-        ))
+        """, buffer, page_size=BATCH_SIZE)
 
-        conn.commit()
-        cur.close()
-        conn.close()
+        db_conn.commit()
 
-        print(f"Saved: {topic} = {value} {unit} [{quality}]")
+        saved_count = len(buffer)
+        saved_total += saved_count
+
+        if PRINT_EVERY_BATCH:
+            print(f"Saved batch: {saved_count} rows, total: {saved_total}")
+
+        buffer = []
+        last_flush_time = now
 
     except Exception as exc:
-        print(f"DB save error for topic {topic}: {exc}")
-        print(f"Payload was: {payload_text}")
+        print(f"DB batch save error: {exc}")
+
+        try:
+            if conn:
+                conn.rollback()
+                conn.close()
+        except Exception:
+            pass
+
+        conn = None
+        cur = None
 
 
 def cleanup_old_rows():
     cutoff = datetime.now(timezone.utc) - timedelta(hours=RETENTION_HOURS)
 
-    conn = get_connection()
-    cur = conn.cursor()
+    try:
+        db_conn, db_cur = ensure_db_connection()
 
-    cur.execute("""
-        DELETE FROM tag_history
-        WHERE timestamp < %s
-    """, (cutoff,))
+        db_cur.execute("""
+            DELETE FROM tag_history
+            WHERE timestamp < %s
+        """, (cutoff,))
 
-    deleted = cur.rowcount
+        deleted = db_cur.rowcount
+        db_conn.commit()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        if deleted > 0:
+            print(f"Deleted old rows older than {RETENTION_HOURS}h: {deleted}")
 
-    if deleted > 0:
-        print(f"Deleted old rows older than {RETENTION_HOURS}h: {deleted}")
+    except Exception as exc:
+        print(f"Cleanup error: {exc}")
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
 
 
 def maybe_cleanup():
@@ -151,6 +211,7 @@ def maybe_cleanup():
     now = time.time()
 
     if now - last_cleanup_time >= CLEANUP_INTERVAL_SECONDS:
+        flush_buffer(force=True)
         cleanup_old_rows()
         last_cleanup_time = now
 
@@ -168,11 +229,29 @@ def on_message(client, userdata, msg):
     try:
         payload_text = msg.payload.decode("utf-8")
 
-        save_to_db(msg.topic, payload_text)
+        add_to_buffer(msg.topic, payload_text)
+        flush_buffer()
         maybe_cleanup()
 
     except Exception as exc:
         print(f"Message error: {exc}")
+
+
+def close_db():
+    global conn, cur
+
+    try:
+        flush_buffer(force=True)
+    except Exception:
+        pass
+
+    try:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+    except Exception:
+        pass
 
 
 def main():
@@ -184,16 +263,22 @@ def main():
     print(f"PostgreSQL user:     {PG_USER}")
     print(f"Retention window:    last {RETENTION_HOURS} hours")
     print(f"Cleanup interval:    {CLEANUP_INTERVAL_SECONDS} seconds")
+    print(f"Batch size:          {BATCH_SIZE}")
+    print(f"Flush interval:      {FLUSH_INTERVAL_SECONDS} seconds")
 
     init_db()
+    ensure_db_connection()
     cleanup_old_rows()
 
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
 
-    client.connect(MQTT_HOST, MQTT_PORT, 60)
-    client.loop_forever()
+    try:
+        client.connect(MQTT_HOST, MQTT_PORT, 60)
+        client.loop_forever()
+    finally:
+        close_db()
 
 
 if __name__ == "__main__":

@@ -100,7 +100,10 @@ services:
       PG_USER: iiot_user
       PG_PASSWORD: iiot_password
       RETENTION_HOURS: 24
-      CLEANUP_INTERVAL_SECONDS: 60
+      CLEANUP_INTERVAL_SECONDS: 1800
+      BATCH_SIZE: 100
+      FLUSH_INTERVAL_SECONDS: 2
+      PRINT_EVERY_BATCH: "true"
     restart: unless-stopped
 
   modbus-bridge:
